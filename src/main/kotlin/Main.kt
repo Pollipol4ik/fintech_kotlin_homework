@@ -1,4 +1,7 @@
-import NewsService.Companion.getMostRatedNews
+import builder.prettyPrintHTML
+import service.NewsService
+import service.NewsService.Companion.getMostRatedNews
+import utils.NewsUtils
 import java.util.logging.Logger
 import java.nio.file.Paths
 import java.time.LocalDate
@@ -8,12 +11,7 @@ fun main(vararg args: String) {
     val newsService = NewsService()
     val newsUtils = NewsUtils()
 
-    val news = try {
-        newsService.getNews(count = 5)
-    } catch (e: Exception) {
-        logger.severe("Failed to get news: ${e.message}")
-        emptyList()
-    }
+    val news = newsService.getNews(count = 5)
     val startDate = LocalDate.now().minusDays(30)
     val endDate = LocalDate.now()
     val period = startDate..endDate

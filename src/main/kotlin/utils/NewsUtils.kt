@@ -1,3 +1,6 @@
+package utils
+
+import dto.News
 import java.io.File
 
 class NewsUtils {

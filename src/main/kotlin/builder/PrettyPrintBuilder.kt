@@ -1,3 +1,5 @@
+package builder
+
 class PrettyPrintHTMLBuilder {
     private val builder = StringBuilder()
 
