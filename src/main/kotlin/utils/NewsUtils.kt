@@ -11,12 +11,10 @@ class NewsUtils {
 
     fun saveNews(path: String, news: Collection<News>) {
         val file = File(path)
-
-        if (file.exists()) {
-            clearFile(path)
-            logger.info("The file exists at path: $path. It has been cleared.")
-        } else {
+        if (!file.exists()) {
             logger.info("The file does not exist at path: $path. It will be created.")
+        } else {
+            logger.info("The file exists at path: $path. It will be cleared.")
         }
 
         file.printWriter().use { writer ->

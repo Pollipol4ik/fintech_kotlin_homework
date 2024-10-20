@@ -21,10 +21,7 @@ class NewsService {
 
     fun getNews(count: Int = properties.getProperty("news.api.defaultPageSize").toInt()): List<News> {
         return try {
-            val url = "${properties.getProperty("news.api.url")}?page_size=$count&" +
-                    "order_by=${properties.getProperty("news.api.orderBy")}&" +
-                    "fields=${properties.getProperty("news.api.fields")}&" +
-                    "location=${properties.getProperty("news.api.location")}"
+            val url = "${properties.getProperty("news.api.url")}?fields=${properties.getProperty("news.api.fields")}"
 
             val connection = URL(url).openConnection() as HttpURLConnection
             connection.requestMethod = "GET"

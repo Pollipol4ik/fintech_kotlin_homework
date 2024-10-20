@@ -23,19 +23,19 @@ fun main() = runBlocking {
             }
         }
     }
-
     logger.info("Execution time of the synchronous version: $syncTime ms")
-    val countOfThreads: Int = 4
+
+
+    val countOfThreads = 9
     val countOfWorkers = 10
     val threadPoolDispatcher = newFixedThreadPoolContext(countOfThreads, "NewsPool")
-
     val newsChannel = Channel<List<News>>(Channel.UNLIMITED)
-
     val outputPath = "src/main/resources/most_rated_news.csv"
 
-    newsUtils.clearFile(outputPath)
 
     val executionTime = measureTimeMillis {
+        newsUtils.clearFile(outputPath)
+
         val workers = (1..countOfWorkers).map { workerId ->
             launch(threadPoolDispatcher) {
                 try {
@@ -48,18 +48,15 @@ fun main() = runBlocking {
                         }
                     }
                 } catch (e: Exception) {
-                    logger.severe("Error while fetching news: ${e.message}")
+                    logger.severe("Error while fetching news on worker $workerId: ${e.message}")
                 }
             }
         }
 
         val processor = launch(Dispatchers.IO) {
             val path = Paths.get(outputPath).toString()
-            while (!newsChannel.isClosedForReceive) {
-                val newsBatch = newsChannel.receiveCatching().getOrNull()
-                if (newsBatch != null) {
-                    newsUtils.saveNews(path, newsBatch)
-                }
+            for (newsBatch in newsChannel) {
+                newsUtils.saveNews(path, newsBatch)
             }
         }
 
