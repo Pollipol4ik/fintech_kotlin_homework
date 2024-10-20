@@ -1,52 +1,72 @@
-import builder.prettyPrintHTML
+import dto.News
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.newFixedThreadPoolContext
+import kotlinx.coroutines.runBlocking
 import service.NewsService
-import service.NewsService.Companion.getMostRatedNews
 import utils.NewsUtils
-import java.util.logging.Logger
 import java.nio.file.Paths
-import java.time.LocalDate
+import java.util.logging.Logger
+import kotlin.system.measureTimeMillis
 
-fun main(vararg args: String) {
+fun main() = runBlocking {
     val logger = Logger.getLogger("Main")
     val newsService = NewsService()
     val newsUtils = NewsUtils()
 
-    val news = newsService.getNews(count = 5)
-    val startDate = LocalDate.now().minusDays(30)
-    val endDate = LocalDate.now()
-    val period = startDate..endDate
+    val syncTime = measureTimeMillis {
+        for (page in 1..20) {
+            val news = newsService.getNews(page)
+            if (news.isNotEmpty()) {
+                newsUtils.saveNews("src/main/resources/news.csv", news)
+            }
+        }
+    }
 
-    val mostRatedNews = news.getMostRatedNews(count = 3, period = period)
+    logger.info("Execution time of the synchronous version: $syncTime ms")
+    val countOfThreads: Int = 4
+    val countOfWorkers = 10
+    val threadPoolDispatcher = newFixedThreadPoolContext(countOfThreads, "NewsPool")
 
-    if (mostRatedNews.isNotEmpty()) {
-        val htmlOutput = prettyPrintHTML {
-            html {
-                head {
-                    title("Самые рейтинговые новости")
-                }
-                body {
-                    h1("Топ новостей")
-                    mostRatedNews.forEach { newsItem ->
-                        h2(newsItem.title)
-                        p {
-                            +"Дата публикации: ${newsItem.publicationDate}"
-                            br()
-                            +"Рейтинг: ${newsItem.rating}"
-                            br()
-                            a(href = newsItem.siteUrl, content = "Читать далее")
+    val newsChannel = Channel<List<News>>(Channel.UNLIMITED)
+
+    val outputPath = "src/main/resources/most_rated_news.csv"
+
+    newsUtils.clearFile(outputPath)
+
+    val executionTime = measureTimeMillis {
+        val workers = (1..countOfWorkers).map { workerId ->
+            launch(threadPoolDispatcher) {
+                try {
+                    for (page in 1..20) {
+                        if (page % countOfWorkers == workerId - 1) {
+                            val newsList = newsService.getNews(page)
+                            if (newsList.isNotEmpty()) {
+                                newsChannel.send(newsList)
+                            }
                         }
                     }
+                } catch (e: Exception) {
+                    logger.severe("Error while fetching news: ${e.message}")
                 }
             }
         }
 
-        logger.info(htmlOutput)
-        try {
-            val path = Paths.get("src", "main", "resources", "most_rated_news.csv").toString()
-            newsUtils.saveNews(path, mostRatedNews)
-            logger.info("Самые рейтинговые новости сохранены в файл 'most_rated_news.csv'")
-        } catch (e: IllegalArgumentException) {
-            logger.severe("Ошибка при сохранении новостей: ${e.message}")
+        val processor = launch(Dispatchers.IO) {
+            val path = Paths.get(outputPath).toString()
+            while (!newsChannel.isClosedForReceive) {
+                val newsBatch = newsChannel.receiveCatching().getOrNull()
+                if (newsBatch != null) {
+                    newsUtils.saveNews(path, newsBatch)
+                }
+            }
         }
+
+        workers.forEach { it.join() }
+        newsChannel.close()
+        processor.join()
     }
+
+    logger.info("Execution time of the program: $executionTime ms")
 }
